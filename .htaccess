@@ -1,0 +1,14 @@
+Options -Indexes
+
+DirectoryIndex index.php index.htm index.html
+
+RewriteEngine On
+RewriteBase /
+
+# Force WWW jika tidak ada subdomain
+RewriteCond %{HTTP_HOST} !^www\. [NC]
+RewriteCond %{HTTP_HOST} ^[^.]+\.[^.]+$
+RewriteRule ^(.*)$ http://www.%{HTTP_HOST}/$1 [R=301,L]
+
+RewriteEngine On
+RewriteRule ^(.*)$ public/$1 [L]
