@@ -18,6 +18,15 @@ class DashboardController extends Controller
             // Data eksisting
             $totalProducts = Product::count();
             $totalStock = Stock::sum('quantity');
+            $totalRacks = \App\Models\Rak::count();
+            
+            $lowStockCount = \Illuminate\Support\Facades\DB::table('stocks')
+                ->selectRaw('product_id, SUM(quantity) as total')
+                ->groupBy('product_id')
+                ->having('total', '<', 10)
+                ->get()
+                ->count();
+
             $recentStockIns = StockIn::with('product', 'rak')->orderBy('date_time', 'desc')->limit(5)->get();
             $recentStockOuts = StockOut::with('product', 'rak')->orderBy('date_time', 'desc')->limit(5)->get();
 
@@ -49,7 +58,9 @@ class DashboardController extends Controller
 
             return view('admin.dashboard', compact(
                 'totalProducts', 
-                'totalStock', 
+                'totalStock',
+                'totalRacks',
+                'lowStockCount', 
                 'recentStockIns', 
                 'recentStockOuts',
                 'chartLabels',
@@ -57,7 +68,124 @@ class DashboardController extends Controller
                 'chartDataOut'
             ));
         } else {
-            return view('staff.dashboard');
+            $today = now();
+            $todayDate = $today->toDateString();
+            $weekStart = $today->copy()->startOfWeek();
+            $sevenDaysAgo = $today->copy()->subDays(6)->startOfDay();
+
+            $todayStockInCount = StockIn::where('created_by', $user->id)
+                ->whereDate('date_time', $todayDate)
+                ->count();
+
+            $todayStockOutCount = StockOut::where('created_by', $user->id)
+                ->whereDate('date_time', $todayDate)
+                ->count();
+
+            $weekQtyIn = StockIn::where('created_by', $user->id)
+                ->where('date_time', '>=', $weekStart)
+                ->sum('quantity');
+
+            $weekQtyOut = StockOut::where('created_by', $user->id)
+                ->where('date_time', '>=', $weekStart)
+                ->sum('quantity');
+
+            $productsHandledThisWeek = StockIn::where('created_by', $user->id)
+                ->where('date_time', '>=', $weekStart)
+                ->pluck('product_id')
+                ->merge(
+                    StockOut::where('created_by', $user->id)
+                        ->where('date_time', '>=', $weekStart)
+                        ->pluck('product_id')
+                )
+                ->unique()
+                ->count();
+
+            $activeRaksToday = StockIn::where('created_by', $user->id)
+                ->whereDate('date_time', $todayDate)
+                ->pluck('rak_id')
+                ->merge(
+                    StockOut::where('created_by', $user->id)
+                        ->whereDate('date_time', $todayDate)
+                        ->pluck('rak_id')
+                )
+                ->unique()
+                ->count();
+
+            $rawStaffStockIns = StockIn::where('created_by', $user->id)
+                ->where('date_time', '>=', $sevenDaysAgo)
+                ->selectRaw('DATE(date_time) as day_key, SUM(quantity) as total')
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
+
+            $rawStaffStockOuts = StockOut::where('created_by', $user->id)
+                ->where('date_time', '>=', $sevenDaysAgo)
+                ->selectRaw('DATE(date_time) as day_key, SUM(quantity) as total')
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
+
+            $staffChartLabels = [];
+            $staffChartDataIn = [];
+            $staffChartDataOut = [];
+
+            for ($i = 6; $i >= 0; $i--) {
+                $date = $today->copy()->subDays($i);
+                $key = $date->toDateString();
+
+                $staffChartLabels[] = $date->format('d M');
+                $staffChartDataIn[] = $rawStaffStockIns[$key] ?? 0;
+                $staffChartDataOut[] = $rawStaffStockOuts[$key] ?? 0;
+            }
+
+            $recentStaffIns = StockIn::with(['product', 'rak'])
+                ->where('created_by', $user->id)
+                ->orderBy('date_time', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'type' => 'in',
+                        'label' => 'Barang Masuk',
+                        'product_name' => $item->product->name ?? 'Produk Arsip/Dihapus',
+                        'rak_name' => trim(($item->rak->nomor_rak ?? '-') . ' - ' . ($item->rak->tingkat ?? '-') . ' (' . ($item->rak->bagian ?? '-') . ')'),
+                        'date_time' => $item->date_time,
+                        'quantity' => $item->quantity,
+                    ];
+                });
+
+            $recentStaffOuts = StockOut::with(['product', 'rak'])
+                ->where('created_by', $user->id)
+                ->orderBy('date_time', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'type' => 'out',
+                        'label' => 'Barang Keluar',
+                        'product_name' => $item->product->name ?? 'Produk Arsip/Dihapus',
+                        'rak_name' => trim(($item->rak->nomor_rak ?? '-') . ' - ' . ($item->rak->tingkat ?? '-') . ' (' . ($item->rak->bagian ?? '-') . ')'),
+                        'date_time' => $item->date_time,
+                        'quantity' => $item->quantity,
+                    ];
+                });
+
+            $recentActivities = $recentStaffIns
+                ->merge($recentStaffOuts)
+                ->sortByDesc('date_time')
+                ->take(6)
+                ->values();
+
+            return view('staff.dashboard', compact(
+                'todayStockInCount',
+                'todayStockOutCount',
+                'weekQtyIn',
+                'weekQtyOut',
+                'productsHandledThisWeek',
+                'activeRaksToday',
+                'staffChartLabels',
+                'staffChartDataIn',
+                'staffChartDataOut',
+                'recentActivities'
+            ));
         }
     }
 }

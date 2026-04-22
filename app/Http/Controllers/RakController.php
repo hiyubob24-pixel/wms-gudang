@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Rak;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class RakController extends Controller
 {
     public function index()
     {
-        $raks = Rak::all();
+        $raks = Rak::withCount(['stocks', 'stockIns', 'stockOuts'])->get();
         return view('admin.raks.index', compact('raks'));
     }
 
@@ -67,7 +68,28 @@ class RakController extends Controller
 
     public function destroy(Rak $rak)
     {
-        $rak->delete();
+        $rak->loadCount(['stocks', 'stockIns', 'stockOuts']);
+
+        $dependencies = collect([
+            $rak->stocks_count ? "{$rak->stocks_count} stok aktif" : null,
+            $rak->stock_ins_count ? "{$rak->stock_ins_count} transaksi barang masuk" : null,
+            $rak->stock_outs_count ? "{$rak->stock_outs_count} transaksi barang keluar" : null,
+        ])->filter();
+
+        if ($dependencies->isNotEmpty()) {
+            return redirect()
+                ->route('raks.index')
+                ->with('error', 'Rak tidak bisa dihapus karena masih digunakan pada '.$dependencies->join(', ', ' dan ').'.');
+        }
+
+        try {
+            $rak->delete();
+        } catch (QueryException $exception) {
+            return redirect()
+                ->route('raks.index')
+                ->with('error', 'Rak tidak bisa dihapus karena masih terhubung dengan data lain.');
+        }
+
         return redirect()->route('raks.index')->with('success', 'Rak dihapus.');
     }
 }

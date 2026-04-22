@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\AdminAiController;
 use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockOutController;
 use App\Http\Controllers\ProductController;
@@ -17,6 +19,7 @@ Route::get('/', function () {
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/global-search', [SearchController::class, 'search'])->name('global.search');
 
     // Barang Masuk
     Route::get('/stock-in', [StockInController::class, 'index'])->name('stock-in.index');
@@ -38,6 +41,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('users', UserController::class);
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/stocks', [StockController::class, 'index'])->name('stocks.index');
+        Route::post('/admin-ai/chat', [AdminAiController::class, 'store'])->name('admin-ai.chat');
         
         Route::get('/stock-in/{id}/edit', [StockInController::class, 'edit'])->name('stock-in.edit');
         Route::put('/stock-in/{id}', [StockInController::class, 'update'])->name('stock-in.update');

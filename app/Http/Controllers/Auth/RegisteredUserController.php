@@ -46,6 +46,9 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        $firstName = explode(' ', trim((string) $user->name))[0] ?: 'Tim';
+
+        return redirect(route('dashboard', absolute: false))
+            ->with('success', 'Akun berhasil dibuat. Selamat datang, '.$firstName.'.');
     }
 }

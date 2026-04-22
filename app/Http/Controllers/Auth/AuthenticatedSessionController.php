@@ -28,7 +28,11 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $firstName = explode(' ', trim((string) $request->user()->name))[0] ?: 'Tim';
+
+        return redirect()
+            ->intended(route('dashboard', absolute: false))
+            ->with('success', 'Selamat datang kembali, '.$firstName.'.');
     }
 
     /**
@@ -36,12 +40,16 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $firstName = explode(' ', trim((string) optional($request->user())->name))[0] ?: null;
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()
+            ->route('login')
+            ->with('info', $firstName ? 'Sampai jumpa, '.$firstName.'. Anda berhasil logout.' : 'Anda berhasil logout.');
     }
 }

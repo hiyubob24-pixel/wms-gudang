@@ -21,7 +21,7 @@ class StockOutController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = Product::orderBy('name')->get();
         return view('stock_out.create', compact('products'));
     }
 
@@ -83,7 +83,13 @@ class StockOutController extends Controller
     public function edit($id)
     {
         $stockOut = StockOut::findOrFail($id);
-        $products = Product::all();
+        $products = Product::orderBy('name')->get();
+
+        $currentProduct = Product::withTrashed()->find($stockOut->product_id);
+        if ($currentProduct && !$products->contains('id', $currentProduct->id)) {
+            $products->prepend($currentProduct);
+        }
+
         $raks = Rak::all()->map(function($rak) {
             $rak->display_name = "{$rak->nomor_rak} - {$rak->tingkat} - {$rak->bagian}";
             return $rak;

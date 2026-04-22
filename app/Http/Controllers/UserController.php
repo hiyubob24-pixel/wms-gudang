@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -10,7 +11,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::all();
+        $users = User::withCount(['stockIns', 'stockOuts'])->get();
         return view('admin.users.index', compact('users'));
     }
 
@@ -57,7 +58,31 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        $user->delete();
+        if ($user->id === auth()->id()) {
+            return redirect()->route('users.index')->with('error', 'User yang sedang login tidak bisa dihapus.');
+        }
+
+        $user->loadCount(['stockIns', 'stockOuts']);
+
+        $dependencies = collect([
+            $user->stock_ins_count ? "{$user->stock_ins_count} transaksi barang masuk" : null,
+            $user->stock_outs_count ? "{$user->stock_outs_count} transaksi barang keluar" : null,
+        ])->filter();
+
+        if ($dependencies->isNotEmpty()) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'User tidak bisa dihapus karena masih tercatat pada '.$dependencies->join(', ', ' dan ').'.');
+        }
+
+        try {
+            $user->delete();
+        } catch (QueryException $exception) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'User tidak bisa dihapus karena masih terhubung dengan data lain.');
+        }
+
         return redirect()->route('users.index')->with('success', 'User dihapus.');
     }
 }

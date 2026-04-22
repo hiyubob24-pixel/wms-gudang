@@ -19,7 +19,7 @@ class StockInController extends Controller
     }
 
     public function create() {
-        $products = Product::all();
+        $products = Product::orderBy('name')->get();
         
         $raks = Rak::with('stocks')->get()->filter(function ($rak) {
             return $rak->available_space > 0;
@@ -74,7 +74,12 @@ class StockInController extends Controller
 
     public function edit($id) {
         $stockIn = StockIn::findOrFail($id);
-        $products = Product::all();
+        $products = Product::orderBy('name')->get();
+
+        $currentProduct = Product::withTrashed()->find($stockIn->product_id);
+        if ($currentProduct && !$products->contains('id', $currentProduct->id)) {
+            $products->prepend($currentProduct);
+        }
         
         $raks = Rak::with('stocks')->get()->filter(function ($rak) use ($stockIn) {
             return $rak->available_space > 0 || $rak->id == $stockIn->rak_id;

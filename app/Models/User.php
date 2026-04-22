@@ -35,4 +35,14 @@ class User extends Authenticatable
     {
         return $this->role === 'admin';
     }
+
+    public function stockIns()
+    {
+        return $this->hasMany(StockIn::class, 'created_by');
+    }
+
+    public function stockOuts()
+    {
+        return $this->hasMany(StockOut::class, 'created_by');
+    }
 }
